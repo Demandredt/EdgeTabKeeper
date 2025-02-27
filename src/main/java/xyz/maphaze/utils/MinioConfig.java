@@ -108,11 +108,4 @@ public class MinioConfig {
     }
 
 
-    public static HashMap<String, List<String>> getKitSetFilenames() {
-        return kitSetFilenames;
-    }
-
-    public static void setKitSetFilenames(HashMap<String, List<String>> kitSetFilenames) {
-        MinioConfig.kitSetFilenames = kitSetFilenames;
-    }
 }
