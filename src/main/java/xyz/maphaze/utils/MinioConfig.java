@@ -1,8 +1,8 @@
 package xyz.maphaze.utils;
 
 import com.alibaba.fastjson2.JSON;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
+import io.minio.*;
+import io.minio.messages.Item;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -16,8 +16,23 @@ import java.util.Properties;
 
 public class MinioConfig {
     static MinioClient minioClient;
+// 初始化
+    static {
+        try {
+            minioClient = readProperties();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     //存储场景和文件名的对应
     public static HashMap<String,List<String>> kitSetFilenames = new HashMap<>();
+//  当前set
+    public static String currentSet = "default";
+
+//    当前的Tabs文件
+    public static List<Path> tabs = EdgeTabKeeperUtils.getLatestTabs();
+//    储存总对应关系的json文件
     static Path kitSetFilenamePath;
 
     static {
@@ -90,13 +105,37 @@ public class MinioConfig {
 
 
     try {
+//        先删除set下的原有文件
+        for (Result<Item> item:minioClient.listObjects(ListObjectsArgs.builder()
+                .bucket("edgetabsync")
+                .prefix(tabSet + "/")
+                .build()
+        )){
+            minioClient.removeObject(
+                    RemoveObjectArgs.builder()
+                            .bucket("edgetabsync")
+                            .object(item.get().objectName())
+                            .build()
+            );
+
+
+        }
+
+
         minioClient.putObject(PutObjectArgs.builder()
                 .bucket("edgetabsync")
                 .object(tabSet+"/"+fileNames.get(0))
                 .build()
-
-
         );
+        minioClient.putObject(PutObjectArgs.builder()
+                .bucket("edgetabsync")
+                .object(tabSet+"/"+fileNames.get(1))
+                .build()
+        );
+
+
+
+
     }catch (Exception e){
         e.printStackTrace();
     }
