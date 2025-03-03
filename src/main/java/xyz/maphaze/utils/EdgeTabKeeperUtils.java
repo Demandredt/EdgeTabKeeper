@@ -13,7 +13,7 @@ public class EdgeTabKeeperUtils {
 
 
     /**
-     * 更新或者添加Tabs配置
+     * 更新或者添加当前本地Tabs配置到MINIO服务器上
      */
     public void saveOrAddSet( ){
         minioConfig.updateKitSetFilename();
@@ -22,6 +22,14 @@ public class EdgeTabKeeperUtils {
                 .map(path -> path.getFileName().toString())
                 .collect(Collectors.toList())
         );
+
+
+        //        存储当前默认的set组
+        List<String> temp = new ArrayList<>();
+        temp.add(MinioConfig.currentSet);
+        MinioConfig.kitSetFilenames.put("currentSet",temp);
+
+
 
         minioConfig.uploadTabKit(MinioConfig.currentSet, MinioConfig.tabs
                         .stream()
@@ -43,7 +51,7 @@ public class EdgeTabKeeperUtils {
     }
 
     /**
-     * 返回最新的tabs组的文件名List
+     * 查询本地最新的tabs组的文件名
      * @return
      */
     public static List<Path> getLatestTabs(){
@@ -89,7 +97,7 @@ public class EdgeTabKeeperUtils {
     }
 
     /**
-     * 检测该文件是否被占用
+     * 检测本地文件是否被占用
      * @param path
      * @return
      */

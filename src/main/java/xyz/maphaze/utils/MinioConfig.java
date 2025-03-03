@@ -46,7 +46,7 @@ public class MinioConfig {
     }
 
     /**
-     * 创建MINIO客户端，建立连接
+     * 创建MINIO客户端，建立连接 static初始化时执行
      * @return
      * @throws IOException
      */
@@ -66,7 +66,7 @@ public class MinioConfig {
     }
 
     /**
-     * 读取映射文件
+     * 读取本地映射json文件
      */
     public void updateKitSetFilename(){
 
@@ -76,10 +76,13 @@ public class MinioConfig {
         }catch (IOException e){
             e.printStackTrace();
         }
+
+        MinioConfig.currentSet = MinioConfig.kitSetFilenames.get("currentSet").get(0);
+
     }
 
     /**
-     * 存储映射文件
+     * 存储json映射文件到本地
      */
     public void saveKitSetFilename(){
         String s = JSON.toJSONString(kitSetFilenames);
@@ -95,7 +98,7 @@ public class MinioConfig {
 
 
     /**
-     * 上传到minio
+     * 上传文件到minio
      * @param tabSet 当前页面所属的组
      * @param fileNames 文件名
      * @param tabKits tab文件的流
@@ -145,6 +148,16 @@ public class MinioConfig {
 
     return 1;
     }
+
+
+    /**
+     * 从服务器下载tabs到本地并且覆盖
+     * @param tabSet
+     */
+    public void downloadTabs(String tabSet){
+
+    }
+
 
 
 }
