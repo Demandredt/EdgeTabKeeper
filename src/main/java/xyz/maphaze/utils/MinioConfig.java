@@ -6,13 +6,8 @@ import io.minio.messages.Item;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Properties;
+import java.nio.file.*;
+import java.util.*;
 
 public class MinioConfig {
     static MinioClient minioClient;
@@ -27,6 +22,7 @@ public class MinioConfig {
 
     //存储场景和文件名的对应
     public static HashMap<String,List<String>> kitSetFilenames = new HashMap<>();
+
 //  当前set
     public static String currentSet = "default";
 
@@ -73,6 +69,11 @@ public class MinioConfig {
         try {
             String s = Files.readString(kitSetFilenamePath,StandardCharsets.UTF_8);
             kitSetFilenames = JSON.parseObject(s,kitSetFilenames.getClass());
+            if (kitSetFilenames.get("currentSet") == null){
+                List<String> list = new ArrayList<>();
+                list.add("default");
+                kitSetFilenames.put("currentSet",list);
+            }
         }catch (IOException e){
             e.printStackTrace();
         }
@@ -82,7 +83,7 @@ public class MinioConfig {
     }
 
     /**
-     * 存储json映射文件到本地
+     * 生成json映射文件到本地
      */
     public void saveKitSetFilename(){
         String s = JSON.toJSONString(kitSetFilenames);
@@ -104,7 +105,7 @@ public class MinioConfig {
      * @param tabKits tab文件的流
      * @return
      */
-    public int uploadTabKit(String tabSet,List<String> fileNames,List<InputStream> tabKits){
+    public int uploadTabKit(String tabSet,List<String> fileNames,List<InputStream> tabKits,List<Long> sizes){
 
 
     try {
@@ -128,11 +129,13 @@ public class MinioConfig {
         minioClient.putObject(PutObjectArgs.builder()
                 .bucket("edgetabsync")
                 .object(tabSet+"/"+fileNames.get(0))
+                .stream(tabKits.get(0),sizes.get(0),-1)
                 .build()
         );
         minioClient.putObject(PutObjectArgs.builder()
                 .bucket("edgetabsync")
                 .object(tabSet+"/"+fileNames.get(1))
+                .stream(tabKits.get(1),sizes.get(1),-1)
                 .build()
         );
 
@@ -155,6 +158,50 @@ public class MinioConfig {
      * @param tabSet
      */
     public void downloadTabs(String tabSet){
+        Iterable<Result<Item>> objects = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket("edgetabsync")
+                        .prefix(tabSet+"/")
+                        .build()
+
+        );
+
+        try{
+            for (Result<Item> result: objects){
+                Item item = result.get();
+                String objectName = item.objectName();
+
+                Path localPath = Paths.get(
+                        System.getProperty("user.home"),
+                        ".EdgeTabKeeper",
+                        objectName
+                );
+
+                Files.createDirectories(localPath.getParent());
+
+                try (InputStream inputStream = minioClient.getObject(
+                        GetObjectArgs.builder()
+                                .bucket("edgetabsync")
+                                .object(objectName)
+                                .build()
+                )){
+                    Files.copy(
+                            inputStream,
+                            localPath,
+                            StandardCopyOption.REPLACE_EXISTING
+                    );
+                    System.out.println("成功下载"+objectName);
+
+                    tabs = EdgeTabKeeperUtils.getLatestTabs();
+
+                }
+
+            }
+
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
 
     }
 

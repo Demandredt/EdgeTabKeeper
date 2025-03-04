@@ -1,9 +1,16 @@
 package xyz.maphaze.utils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import io.minio.GetObjectArgs;
+import io.minio.ListObjectsArgs;
+import io.minio.PutObjectArgs;
+import io.minio.Result;
+import io.minio.errors.*;
+import io.minio.messages.Item;
+
+import java.io.*;
 import java.nio.file.*;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -14,9 +21,9 @@ public class EdgeTabKeeperUtils {
 
     /**
      * 更新或者添加当前本地Tabs配置到MINIO服务器上
+     * 以及json映射文件
      */
     public void saveOrAddSet( ){
-        minioConfig.updateKitSetFilename();
         MinioConfig.kitSetFilenames.put(MinioConfig.currentSet,MinioConfig.tabs
                 .stream()
                 .map(path -> path.getFileName().toString())
@@ -24,12 +31,14 @@ public class EdgeTabKeeperUtils {
         );
 
 
+
+
         //        存储当前默认的set组
         List<String> temp = new ArrayList<>();
         temp.add(MinioConfig.currentSet);
         MinioConfig.kitSetFilenames.put("currentSet",temp);
 
-
+        List<Long> sizes = new ArrayList<>();
 
         minioConfig.uploadTabKit(MinioConfig.currentSet, MinioConfig.tabs
                         .stream()
@@ -38,15 +47,48 @@ public class EdgeTabKeeperUtils {
                 , MinioConfig.tabs.stream()
                         .map(path -> {
                             try {
-                                return Files.newInputStream(path);
+                                InputStream in = Files.newInputStream(path);
+                                sizes.add(Files.size(path));
+                                return in;
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
                             }
 
                         })
                         .collect(Collectors.toList())
-        );
+        ,sizes);
 
+        //上传json映射文件到服务器
+        Path jsonPath = Paths.get(System.getProperty("user.home"),".EdgeTabKeeper","kitSetFilename.json");
+        try {
+            InputStream jsonStream = Files.newInputStream(jsonPath, StandardOpenOption.READ);
+            MinioConfig.minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .stream(jsonStream, Files.size(jsonPath), -1)
+                            .bucket("edgetabsync")
+                            .object("kitSetFilename.json")
+                            .build()
+        );
+            jsonStream.close();
+        }catch (IOException e){
+            e.printStackTrace();
+        } catch (ServerException e) {
+            throw new RuntimeException(e);
+        } catch (InsufficientDataException e) {
+            throw new RuntimeException(e);
+        } catch (ErrorResponseException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidKeyException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidResponseException e) {
+            throw new RuntimeException(e);
+        } catch (XmlParserException e) {
+            throw new RuntimeException(e);
+        } catch (InternalException e) {
+            throw new RuntimeException(e);
+        }
 
     }
 
@@ -73,6 +115,12 @@ public class EdgeTabKeeperUtils {
                                 }
                             }
                     ));
+            tabs.add(latestSession.get());
+
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+        try (Stream<Path> stream = Files.list(tabsPath)){
             Optional<Path> latestTabs = stream.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().matches(patternTab))
                     .filter(EdgeTabKeeperUtils::isFileAvailable)
@@ -85,14 +133,14 @@ public class EdgeTabKeeperUtils {
                                 }
                             }
                     ));
-
-            tabs.add(latestSession.get());
             tabs.add(latestTabs.get());
-
-
         }catch (IOException e){
             e.printStackTrace();
         }
+
+
+
+
         return tabs;
     }
 
@@ -105,11 +153,66 @@ public class EdgeTabKeeperUtils {
         try {
             Files.newByteChannel(path, StandardOpenOption.WRITE).close();
             return true;
-        }catch (AccessDeniedException e){
+        } catch (IOException e){
                 return false;
-        }catch (IOException e){
-            return false;
         }
 
+    }
+
+
+    /**
+     * 从服务器拉取json配置文件并替换
+     */
+    public void pullJson(){
+        Iterable<Result<Item>> objects = MinioConfig.minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket("edgetabsync")
+                        .prefix("kitSetFilename.json")
+                        .build()
+        );
+
+        for (Result<Item> result : objects){
+            try {
+                Item item = result.get();
+                Path jsonPath = Paths.get(System.getProperty("user.home"),".EdgeTabKeeper","kitSetFilename.json");
+                Files.createDirectories(jsonPath.getParent());
+                try (InputStream in = MinioConfig.minioClient.getObject(
+                        GetObjectArgs.builder()
+                                .bucket("edgetabsync")
+                                .object("kitSetFilename.json")
+                                .build()
+                )){
+                    Files.copy(
+                            in,
+                            jsonPath,
+                            StandardCopyOption.REPLACE_EXISTING
+                    );
+
+                }
+
+
+
+
+            } catch (ErrorResponseException e) {
+                throw new RuntimeException(e);
+            } catch (InsufficientDataException e) {
+                throw new RuntimeException(e);
+            } catch (InternalException e) {
+                throw new RuntimeException(e);
+            } catch (InvalidKeyException e) {
+                throw new RuntimeException(e);
+            } catch (InvalidResponseException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            } catch (ServerException e) {
+                throw new RuntimeException(e);
+            } catch (XmlParserException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
     }
 }
